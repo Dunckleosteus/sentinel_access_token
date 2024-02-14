@@ -17,6 +17,7 @@ def main [email password] {
     # creating and saving our new config file
     create_config_file $config_file_path $email $password
   }
+  return ($config_file_path | open | get access_token)
 }
 # Functions
 def check_config_file_date [table config_file_path email password] {
