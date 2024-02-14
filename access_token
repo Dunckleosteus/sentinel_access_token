@@ -20,10 +20,12 @@ def main [email password] {
 }
 # Functions
 def check_config_file_date [table config_file_path email password] {
+  # valid time is the last time that the table was modified
   let valid_time = ($"(($table | get refresh_expires_in))sec" | into duration);
+  # valid access is the expiry time of the our access token
   let valid_access = ($"(($table | get expires_in))sec" | into duration);
+  # modified is the last time the table was built or modified, it's a field in the table
   let modified = ($"(($table | get accessed))" | into datetime)
-
 
   if (($modified + $valid_time) <= (date now)) {
     print "Refresh token is out of date"
@@ -50,5 +52,5 @@ def refresh_token [config_file_path] {
   let new_access_token = ($tokens | get access_token);
   let new_refresh_token = ($tokens | get refresh_token);
   # In the config file, update refresh token, access token and accessed 
-  let dataframe = ($config_file_path | open | update accessed (date now) | update access_token ($new_access_token) | update refresh_token ($new_refresh_token));
+  $config_file_path | open | update accessed (date now) | update access_token ($new_access_token) | update refresh_token ($new_refresh_token) | save -f $config_file_path;
 }
