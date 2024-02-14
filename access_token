@@ -1,0 +1,54 @@
+#!/home/throgg/.cargo/bin/nu
+
+
+# this script automatically generates access and refresh tokens to access sentinel data from the copernicus browser
+def main [email password] {
+  let config_file_path = "access_token.json";
+  if ($config_file_path | path exists) {
+    print "config file exist, checking validity"
+    let config_file = ($config_file_path | open);
+    if (($config_file | columns) == ["access_token" "expires_in" "refresh_expires_in" "refresh_token" "token_type" "not-before-policy" "session_state" "scope" "accessed"]) {
+      print "config file valid, checking to see if it's up to date"
+      check_config_file_date $config_file $config_file_path $email $password
+    } else {
+      create_config_file $config_file_path $email $password
+    }
+  } else {
+    # creating and saving our new config file
+    create_config_file $config_file_path $email $password
+  }
+}
+# Functions
+def check_config_file_date [table config_file_path email password] {
+  let valid_time = ($"(($table | get refresh_expires_in))sec" | into duration);
+  let valid_access = ($"(($table | get expires_in))sec" | into duration);
+  let modified = ($"(($table | get accessed))" | into datetime)
+
+
+  if (($modified + $valid_time) <= (date now)) {
+    print "Refresh token is out of date"
+    create_config_file $config_file_path $email $password
+  } else {
+    print $"the refresh token is still valid for (($modified + $valid_time) - (date now))"
+    if (($modified + $valid_access) <= (date now)) {
+      print "Access token is out of date"
+      refresh_token $config_file_path
+    } else {
+      print $"the access key is still valid for (($modified + $valid_access) - (date now))"
+    }
+  }
+}
+def create_config_file [config_file email password] {
+    # this function create the config file
+    print $"creating of updating config file at (pwd)/($config_file)"
+    let COPERNICUS_TOKENS = (curl -s -X POST https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token -H "Content-Type: application/x-www-form-urlencoded" -d $"username=($email)" -d $"password=($password)" -d "grant_type=password" -d "client_id=cdse-public" | from json | insert accessed (date now)) ;
+    $COPERNICUS_TOKENS | save -f $config_file
+}
+def refresh_token [config_file_path] {
+  let old_refresh_token = ($config_file_path | open | get refresh_token)
+  let tokens = (curl --location --request POST 'https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token' --header 'Content-Type: application/x-www-form-urlencoded'  --data-urlencode 'grant_type=refresh_token' --data-urlencode $'refresh_token=($old_refresh_token)' --data-urlencode 'client_id=cdse-public' | from json);
+  let new_access_token = ($tokens | get access_token);
+  let new_refresh_token = ($tokens | get refresh_token);
+  # In the config file, update refresh token, access token and accessed 
+  let dataframe = ($config_file_path | open | update accessed (date now) | update access_token ($new_access_token) | update refresh_token ($new_refresh_token));
+}
