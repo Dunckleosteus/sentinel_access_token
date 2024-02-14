@@ -45,12 +45,11 @@ def check_config_file_date [table config_file_path] {
     print "Refresh token is out of date"
     create_config_file $config_file_path
   } else {
-    print $"the refresh token is still valid for (($modified + $valid_time) - (date now))"
+    print $"the refresh token is still valid for (ansi red_bold) (($modified + $valid_time) - (date now)) (ansi reset)"
     if (($modified + $valid_access) <= (date now)) {
-      print "Access token is out of date"
       refresh_token $config_file_path
     } else {
-      print $"the access key is still valid for (($modified + $valid_access) - (date now))"
+      print $"the access key is still valid for (ansi red_bold)(($modified + $valid_access) - (date now)) (ansi reset)"
     }
   }
 }
@@ -59,11 +58,12 @@ def create_config_file [config_file] {
     let user_input = get_user_input;
     let email = user_input.0;
     let password = user_input.1;
-    print $"creating of updating config file at (pwd)/($config_file)"
+    print $"=>  CREATING OF UPDATING CONFIG FILE @:(ansi purple_bold) (pwd)/($config_file)(ansi reset)"
     let COPERNICUS_TOKENS = (curl -s -X POST https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token -H "Content-Type: application/x-www-form-urlencoded" -d $"username=($email)" -d $"password=($password)" -d "grant_type=password" -d "client_id=cdse-public" | from json | insert accessed (date now)) ;
     $COPERNICUS_TOKENS | save -f $config_file
 }
 def refresh_token [config_file_path] {
+  print $"==> (ansi green_bold) Refreshing (ansi reset) Acess token using (ansi purple_bold) refresh token (ansi reset)"
   let old_refresh_token = ($config_file_path | open | get refresh_token)
   let tokens = (curl --location --request POST 'https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token' --header 'Content-Type: application/x-www-form-urlencoded'  --data-urlencode 'grant_type=refresh_token' --data-urlencode $'refresh_token=($old_refresh_token)' --data-urlencode 'client_id=cdse-public' | from json);
   let new_access_token = ($tokens | get access_token);
