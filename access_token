@@ -2,25 +2,38 @@
 
 
 # this script automatically generates access and refresh tokens to access sentinel data from the copernicus browser
-def main [email password] {
+def main [] {
   let config_file_path = "access_token.json";
+
+  # start by making sure the config path points to a file
   if ($config_file_path | path exists) {
-    print "config file exist, checking validity"
+    # if it exists, we need to make sure that all the required fields are there
     let config_file = ($config_file_path | open);
     if (($config_file | columns) == ["access_token" "expires_in" "refresh_expires_in" "refresh_token" "token_type" "not-before-policy" "session_state" "scope" "accessed"]) {
-      print "config file valid, checking to see if it's up to date"
-      check_config_file_date $config_file $config_file_path $email $password
+      # if the previous conditions are met then we make sure it is up to date
+      check_config_file_date $config_file $config_file_path
     } else {
-      create_config_file $config_file_path $email $password
+      # if it is not up to date make a new one
+      create_config_file $config_file_path
     }
   } else {
     # creating and saving our new config file
-    create_config_file $config_file_path $email $password
+    # if the config file is incorrect, then generate a new one
+    create_config_file $config_file_path
   }
+  # return an up to date path
   return ($config_file_path | open | get access_token)
 }
 # Functions
-def check_config_file_date [table config_file_path email password] {
+
+def get_user_input [] {
+  print "Input email: ";
+  let email = (input);
+  print "Input password: ";
+  let password = (input);
+  return [$email $password]
+}
+def check_config_file_date [table config_file_path] {
   # valid time is the last time that the table was modified
   let valid_time = ($"(($table | get refresh_expires_in))sec" | into duration);
   # valid access is the expiry time of the our access token
@@ -30,7 +43,7 @@ def check_config_file_date [table config_file_path email password] {
 
   if (($modified + $valid_time) <= (date now)) {
     print "Refresh token is out of date"
-    create_config_file $config_file_path $email $password
+    create_config_file $config_file_path
   } else {
     print $"the refresh token is still valid for (($modified + $valid_time) - (date now))"
     if (($modified + $valid_access) <= (date now)) {
@@ -41,8 +54,11 @@ def check_config_file_date [table config_file_path email password] {
     }
   }
 }
-def create_config_file [config_file email password] {
+def create_config_file [config_file] {
     # this function create the config file
+    let user_input = get_user_input;
+    let email = user_input.0;
+    let password = user_input.1;
     print $"creating of updating config file at (pwd)/($config_file)"
     let COPERNICUS_TOKENS = (curl -s -X POST https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token -H "Content-Type: application/x-www-form-urlencoded" -d $"username=($email)" -d $"password=($password)" -d "grant_type=password" -d "client_id=cdse-public" | from json | insert accessed (date now)) ;
     $COPERNICUS_TOKENS | save -f $config_file
