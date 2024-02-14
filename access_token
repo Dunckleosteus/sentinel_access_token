@@ -2,37 +2,60 @@
 
 
 # this script automatically generates access and refresh tokens to access sentinel data from the copernicus browser
-def main [] {
+def main [--init -h] {
   let config_file_path = "access_token.json";
-  # start by making sure the config path points to a file
-  if ($config_file_path | path exists) {
-    # if it exists, we need to make sure that all the required fields are there
-    let config_file = ($config_file_path | open);
-    if (($config_file | columns) == ["access_token" "expires_in" "refresh_expires_in" "refresh_token" "token_type" "not-before-policy" "session_state" "scope" "accessed"]) {
-      # if the previous conditions are met then we make sure it is up to date
-      check_config_file_date $config_file $config_file_path
-    } else {
-      # if it is not up to date make a new one
-      create_config_file $config_file_path
-    }
+  if $init {
+    init $config_file_path;
+  } else if $h {
+    let aide = $"To access data on from the copernicus API, the user needs to acquire an(ansi red) access_token (ansi reset). This requires that the user already has an account for this service. If this is the case then it's possible 2 acquire 2 tokens:
+    1.  ACCESS_TOKEN
+    2.  REFRESH_TOKEN
+    The access token is used to access the data, however it has a short lifespan, usually around 10 minutes. The refresh token allows the user to collect to generate a new token using. The main advantages of doing this rather than just asking for a new token is that it does not require the sending of the password + email of the user.
+
+    As such this program aims to regenerate the access_token using the refresh token where possible. There are a few exceptions when the user will need to provide his email + password:
+    - 1. The both tokens are outdated
+    - 2. The config file is absent of corrupted
+
+    As such to use the program start by initializing it using (ansi blue_bold) access_token --init (ansi reset) this will create a config.json file saving connecting information. The user's data is not stored in this file, you can check, the file is right next to the executable.
+    Once this is done, simply run (ansi blue_bold)access_token(ansi reset) this will generate a string output
+    Use the -h flag for help.
+    ";
+    print $aide;
   } else {
-    create_config_file $config_file_path
+    # start by making sure the config path points to a file
+    if ($config_file_path | path exists) {
+      # if it exists, we need to make sure that all the required fields are there
+      let config_file = ($config_file_path | open);
+      if (($config_file | columns) == ["access_token" "expires_in" "refresh_expires_in" "refresh_token" "token_type" "not-before-policy" "session_state" "scope" "accessed"]) {
+        check_config_file_date $config_file $config_file_path
+      } else {
+        error make {msg: "ERROR: There are missing or incorrect columns in the config file, please run (ansi green_bold) access_token --init (ansi reset) to create one"}
+      }
+    } else {
+      error make {msg: "ERROR: There is no config file, please run (ansi green_bold) access_token --init (ansi reset) to create one"}
+    }
+    return ($config_file_path | open | get access_token)
   }
-  return ($config_file_path | open | get access_token)
 }
 
 
 
-# Functions
 
-def get_user_input [] {
+
+def init [config_file_path] {
+  # this function is used to create they key at the start
+  # this function create the config file
   print "Input email: ";
   let email = (input);
   print "Input password: ";
   let password = (input);
-  clear;
-  return [$email $password]
+
+  print $"=>  CREATING OF UPDATING CONFIG FILE @:(ansi purple_bold) (pwd)/($config_file_path)(ansi reset)";
+  let COPERNICUS_TOKENS = (curl -s -X POST https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token -H "Content-Type: application/x-www-form-urlencoded" -d $"username=($email)" -d $"password=($password)" -d "grant_type=password" -d "client_id=cdse-public" | from json | insert accessed (date now)) ;
+  $COPERNICUS_TOKENS | save -f $config_file_path
 }
+
+# Functions
 def check_config_file_date [table config_file_path] {
   # valid time is the last time that the table was modified
   let refresh_time = ($"(($table | get refresh_expires_in))sec" | into duration);
@@ -46,21 +69,10 @@ def check_config_file_date [table config_file_path] {
   let access_valid = ($modified + $access_time) > $now;
 
   if $refresh_valid == false {
-    create_config_file $config_file_path
+    error make {msg: "ERROR: Both the refresh token and access token are out of date,  please run (ansi green_bold) access_token --init (ansi reset) to create one"}
   } else if $refresh_valid == true and $access_valid == false {
     refresh_token $config_file_path
   }
-}
-
-
-def create_config_file [config_file] {
-    # this function create the config file
-    let user_input = get_user_input;
-    let email = user_input.0;
-    let password = user_input.1;
-    # print $"=>  CREATING OF UPDATING CONFIG FILE @:(ansi purple_bold) (pwd)/($config_file)(ansi reset)"
-    let COPERNICUS_TOKENS = (curl -s -X POST https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token -H "Content-Type: application/x-www-form-urlencoded" -d $"username=($email)" -d $"password=($password)" -d "grant_type=password" -d "client_id=cdse-public" | from json | insert accessed (date now)) ;
-    $COPERNICUS_TOKENS | save -f $config_file
 }
 
 
