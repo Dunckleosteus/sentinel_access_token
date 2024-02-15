@@ -1,0 +1,23 @@
+#!/home/throgg/.cargo/bin/nu
+def main [id?: string output="output/sisi.zip" -h] {
+	if $h {
+		print $"
+You asked for help
+This function allows you to automatically install data from sentinel hub.
+- If it does not run, start by using (ansi red) .\\access_token --init (ansi reset)
+- An Id is used to identify a product on sentinel hub an example looks like this :
+	(ansi yellow)236b4ff2-aa4a-4013-a3f2-4eef9c63a306(ansi reset)
+		"
+	} else {
+		if $id != null {
+
+		print $"Saving file to (ansi red) ($output) (ansi reset)";
+		let ACCESS_TOKEN = (./access_token);
+		curl -H $"Authorization: Bearer ($ACCESS_TOKEN)" (['https://zipper.dataspace.copernicus.eu/odata/v1/Products(', $id, ')/$value'] | str join) --output $"($output)"
+	} else {
+		echo $"You did not specify and ID, use (ansi green_bold)install -h(ansi reset) for help"
+	}
+
+	}
+
+}
