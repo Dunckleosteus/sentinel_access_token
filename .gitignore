@@ -1,0 +1,4 @@
+# Ignore all the contents of the output folder
+output/
+# Becaus the access_token.json is automatically generated if it's missing, it does not need to be followed
+access_token.json
