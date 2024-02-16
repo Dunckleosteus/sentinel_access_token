@@ -1,11 +1,12 @@
 #!/home/throgg/.cargo/bin/nu
 # This script is used to query the Copernicus API
-def main [geometry: string] {
+def main [geometry: string -v] {
 	let str_1 = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products?$filter=OData.CSC.Intersects(area=geography'SRID=4326;"
-
-	let str2 = "POLYGON ((2.2328312 49.697174, 2.234271 49.699657, 2.235486 49.701874, 2.2369933 49.705135, 2.2375782 49.706005, 2.2386243 49.708645, 2.2394903 49.711964, 2.2398615 49.714092, 2.2400415 49.71725, 2.2400641 49.71859, 2.2410202 49.718624, 2.2409751 49.715733, 2.240829 49.71291, 2.2403903 49.710175, 2.2393217 49.7076, 2.237983 49.704227, 2.2362282 49.70103, 2.2347884 49.698254, 2.2338998 49.696575, 2.2328312 49.697174))";
 
 	let str3 = "')";
 	
-	wget $"\"([ $str_1 $geometry $str3 ] | str join)\"" -O temp/geospatial.json
+	wget $"\"([ $str_1 $geometry $str3 ] | str join)\"" -O temp/geospatial.json;
+	if $v {
+		open temp/geospatial.json | get value | select Id ContentDate.Start ContentDate.End
+	}
 }
