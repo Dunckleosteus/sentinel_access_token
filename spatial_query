@@ -1,0 +1,7 @@
+#!/home/throgg/.cargo/bin/nu
+# This script is used to query the Copernicus API
+def main [geometry: string] {
+	let str_1 = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products?$filter=OData.CSC.Intersects(area=geography'SRID=4326;POLYGON((12.655118166047592 47.44667197521409,21.39065656328509 48.347694733853245,28.334291357162826 41.877123516783655,17.47086198383573 40.35854475076158,12.655118166047592 47.44667197521409))')"
+	
+	wget $"\"($str_1)\"" -O temp/geospatial.json
+}
